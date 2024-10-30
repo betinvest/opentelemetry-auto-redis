@@ -1,11 +1,5 @@
 <?php
 
-/**
- * @copyright  Copyright (c) 2024 E-vino Comércio de Vinhos S.A. (https://evino.com.br)
- * @author     Kevin Mian Kraiker <kevin.kraiker@evino.com.br>
- * @Link       https://evino.com.br
- */
-
 declare(strict_types=1);
 
 namespace OpenTelemetry\Contrib\Instrumentation\Redis;
@@ -24,7 +18,7 @@ use function OpenTelemetry\Instrumentation\hook;
 /**
  * @SuppressWarnings(PHPMD.StaticAccess)
  */
-class RedisInstrumentation
+class RedisClusterInstrumentation
 {
     public const NAME = 'redis';
 
@@ -33,15 +27,15 @@ class RedisInstrumentation
         $instrumentation = new CachedInstrumentation('io.opentelemetry.contrib.php.redis');
         $attributeTracker = new RedisAttributeTracker();
 
-        $genericPostHook = static function (\Redis $redis, array $params, mixed $ret, ?Throwable $exception) {
+        $genericPostHook = static function (\RedisCluster $redis, array $params, mixed $ret, ?Throwable $exception) {
             self::end($exception);
         };
 
         hook(
-            \Redis::class,
+            \RedisCluster::class,
             '__construct',
             pre: static function (
-                \Redis $redis,
+                \RedisCluster $redis,
                 array $params,
                 string $class,
                 string $function,
@@ -51,7 +45,7 @@ class RedisInstrumentation
                 /** @psalm-suppress ArgumentTypeCoercion */
                 $builder = self::makeBuilder(
                     $instrumentation,
-                    'Redis::__construct',
+                    'RedisCluster::__construct',
                     $function,
                     $class,
                     $filename,
@@ -75,7 +69,7 @@ class RedisInstrumentation
                 $span = $builder->startSpan();
                 Context::storage()->attach($span->storeInContext($parent));
             },
-            post: static function (\Redis $redis, array $params, mixed $ret, ?Throwable $exception) use (
+            post: static function (\RedisCluster $redis, array $params, mixed $ret, ?Throwable $exception) use (
                 $attributeTracker,
             ) {
                 $scope = Context::storage()->scope();
@@ -91,187 +85,16 @@ class RedisInstrumentation
             },
         );
         hook(
-            \Redis::class,
-            'connect',
-            pre: static function (
-                \Redis $redis,
-                array $params,
-                string $class,
-                string $function,
-                ?string $filename,
-                ?int $lineno,
-            ) use ($instrumentation) {
-                /** @psalm-suppress ArgumentTypeCoercion */
-                $builder = self::makeBuilder($instrumentation, 'Redis::connect', $function, $class, $filename, $lineno)
-                    ->setSpanKind(SpanKind::KIND_CLIENT);
-                if ($class === \Redis::class) {
-                    $builder->setAttribute(TraceAttributes::SERVER_ADDRESS, $params[0]);
-                    if (!str_starts_with($params[0], 'unix:') && !str_contains($params[0], '/')) {
-                        $builder->setAttribute(TraceAttributes::NETWORK_TRANSPORT, 'tcp');
-                        $builder->setAttribute(TraceAttributes::SERVER_PORT, $params[1] ?? 6379);
-                    } else {
-                        $builder->setAttribute(TraceAttributes::NETWORK_TRANSPORT, 'unix');
-                    }
-                    if (
-                        isset($params[6])
-                        && array_key_exists('auth', $params[6])
-                        && is_array($auth = $params[6]['auth'])
-                        && count($auth) > 1
-                    ) {
-                        $builder->setAttribute(TraceAttributes::DB_USER, $auth[0]);
-                    }
-                }
-                $parent = Context::getCurrent();
-                $span = $builder->startSpan();
-                Context::storage()->attach($span->storeInContext($parent));
-            },
-            post: static function (\Redis $redis, array $params, mixed $ret, ?Throwable $exception) use (
-                $attributeTracker,
-            ) {
-                $scope = Context::storage()->scope();
-                if (!$scope) {
-                    return;
-                }
-                $span = Span::fromContext($scope->context());
-
-                $attributes = $attributeTracker->trackRedisAttributes($redis);
-                $span->setAttributes($attributes);
-
-                self::end($exception);
-            },
-        );
-        hook(
-            \Redis::class,
-            'pconnect',
-            pre: static function (
-                \Redis $redis,
-                array $params,
-                string $class,
-                string $function,
-                ?string $filename,
-                ?int $lineno,
-            ) use ($instrumentation) {
-                /** @psalm-suppress ArgumentTypeCoercion */
-                $builder = self::makeBuilder($instrumentation, 'Redis::pconnect', $function, $class, $filename, $lineno)
-                    ->setSpanKind(SpanKind::KIND_CLIENT);
-                if ($class === \Redis::class) {
-                    $builder->setAttribute(TraceAttributes::SERVER_ADDRESS, $params[0]);
-                    if (!str_starts_with($params[0], 'unix:') && !str_contains($params[0], '/')) {
-                        $builder->setAttribute(TraceAttributes::NETWORK_TRANSPORT, 'tcp');
-                        $builder->setAttribute(TraceAttributes::SERVER_PORT, $params[1] ?? 6379);
-                    } else {
-                        $builder->setAttribute(TraceAttributes::NETWORK_TRANSPORT, 'unix');
-                    }
-                    if (
-                        isset($params[6])
-                        && array_key_exists('auth', $params[6])
-                        && is_array($auth = $params[6]['auth'])
-                        && count($auth) > 1
-                    ) {
-                        $builder->setAttribute(TraceAttributes::DB_USER, $auth[0]);
-                    }
-                }
-                $parent = Context::getCurrent();
-                $span = $builder->startSpan();
-                Context::storage()->attach($span->storeInContext($parent));
-            },
-            post: static function (\Redis $redis, array $params, mixed $ret, ?Throwable $exception) use (
-                $attributeTracker,
-            ) {
-                $scope = Context::storage()->scope();
-                if (!$scope) {
-                    return;
-                }
-                $span = Span::fromContext($scope->context());
-
-                $attributes = $attributeTracker->trackRedisAttributes($redis);
-                $span->setAttributes($attributes);
-
-                self::end($exception);
-            },
-        );
-        hook(
-            \Redis::class,
-            'select',
-            pre: static function (
-                \Redis $redis,
-                array $params,
-                string $class,
-                string $function,
-                ?string $filename,
-                ?int $lineno,
-            ) use ($attributeTracker, $instrumentation) {
-                /** @psalm-suppress ArgumentTypeCoercion */
-                $builder = self::makeBuilder($instrumentation, 'Redis::select', $function, $class, $filename, $lineno)
-                    ->setSpanKind(SpanKind::KIND_CLIENT);
-                $parent = Context::getCurrent();
-                $span = $builder->startSpan();
-                $attributes = $attributeTracker->trackedAttributesForRedis($redis);
-                $attributes[TraceAttributes::DB_REDIS_DATABASE_INDEX] = $params[0];
-                $span->setAttributes($attributes);
-                Context::storage()->attach($span->storeInContext($parent));
-            },
-            post: static function (\Redis $redis, array $params, mixed $ret, ?Throwable $exception) use (
-                $attributeTracker,
-            ) {
-                $scope = Context::storage()->scope();
-                if (!$scope) {
-                    return;
-                }
-                $span = Span::fromContext($scope->context());
-
-                $attributes = $attributeTracker->trackRedisAttributes($redis);
-                $span->setAttributes($attributes);
-
-                self::end($exception);
-            },
-        );
-        hook(
-            \Redis::class,
-            'reset',
-            pre: static function (
-                \Redis $redis,
-                array $params,
-                string $class,
-                string $function,
-                ?string $filename,
-                ?int $lineno,
-            ) use ($attributeTracker, $instrumentation) {
-                /** @psalm-suppress ArgumentTypeCoercion */
-                $builder = self::makeBuilder($instrumentation, 'Redis::reset', $function, $class, $filename, $lineno)
-                    ->setSpanKind(SpanKind::KIND_CLIENT);
-                $parent = Context::getCurrent();
-                $span = $builder->startSpan();
-                $attributes = $attributeTracker->trackedAttributesForRedis($redis);
-                $span->setAttributes($attributes);
-                Context::storage()->attach($span->storeInContext($parent));
-            },
-            post: static function (\Redis $redis, array $params, mixed $ret, ?Throwable $exception) use (
-                $attributeTracker,
-            ) {
-                $scope = Context::storage()->scope();
-                if (!$scope) {
-                    return;
-                }
-                $span = Span::fromContext($scope->context());
-
-                $attributes = $attributeTracker->trackRedisAttributes($redis);
-                $span->setAttributes($attributes);
-
-                self::end($exception);
-            },
-        );
-        hook(
-            \Redis::class,
+            \RedisCluster::class,
             'exists',
             pre: self::generateVarargsPreHook('exists', $instrumentation, $attributeTracker),
             post: $genericPostHook,
         );
         hook(
-            \Redis::class,
+            \RedisCluster::class,
             'get',
             pre: static function (
-                \Redis $redis,
+                \RedisCluster $redis,
                 array $params,
                 string $class,
                 string $function,
@@ -279,9 +102,9 @@ class RedisInstrumentation
                 ?int $lineno,
             ) use ($attributeTracker, $instrumentation) {
                 /** @psalm-suppress ArgumentTypeCoercion */
-                $builder = self::makeBuilder($instrumentation, 'Redis::get', $function, $class, $filename, $lineno)
+                $builder = self::makeBuilder($instrumentation, 'RedisCluster::get', $function, $class, $filename, $lineno)
                     ->setSpanKind(SpanKind::KIND_CLIENT);
-                if ($class === \Redis::class) {
+                if ($class === \RedisCluster::class) {
                     $builder->setAttribute(
                         TraceAttributes::DB_STATEMENT,
                         isset($params[0]) ? 'GET ' . $params[0] : 'undefined',
@@ -298,16 +121,16 @@ class RedisInstrumentation
             post: $genericPostHook,
         );
         hook(
-            \Redis::class,
+            \RedisCluster::class,
             'mget',
             pre: self::generateVarargsPreHook('mGet', $instrumentation, $attributeTracker),
             post: $genericPostHook,
         );
         hook(
-            \Redis::class,
+            \RedisCluster::class,
             'set',
             pre: static function (
-                \Redis $redis,
+                \RedisCluster $redis,
                 array $params,
                 string $class,
                 string $function,
@@ -315,9 +138,9 @@ class RedisInstrumentation
                 ?int $lineno,
             ) use ($attributeTracker, $instrumentation) {
                 /** @psalm-suppress ArgumentTypeCoercion */
-                $builder = self::makeBuilder($instrumentation, 'Redis::set', $function, $class, $filename, $lineno)
+                $builder = self::makeBuilder($instrumentation, 'RedisCluster::set', $function, $class, $filename, $lineno)
                     ->setSpanKind(SpanKind::KIND_CLIENT);
-                if ($class === \Redis::class) {
+                if ($class === \RedisCluster::class) {
                     $statement = 'SET ' . $params[0] . ' ?';
                     if (isset($params[2]) && is_array($params[2])) {
                         foreach ($params[2] as $key => $value) {
@@ -340,10 +163,10 @@ class RedisInstrumentation
             post: $genericPostHook,
         );
         hook(
-            \Redis::class,
-            'setEx',
+            \RedisCluster::class,
+            'setex',
             pre: static function (
-                \Redis $redis,
+                \RedisCluster $redis,
                 array $params,
                 string $class,
                 string $function,
@@ -351,9 +174,9 @@ class RedisInstrumentation
                 ?int $lineno,
             ) use ($attributeTracker, $instrumentation) {
                 /** @psalm-suppress ArgumentTypeCoercion */
-                $builder = self::makeBuilder($instrumentation, 'Redis::setEx', $function, $class, $filename, $lineno)
+                $builder = self::makeBuilder($instrumentation, 'RedisCluster::setEx', $function, $class, $filename, $lineno)
                     ->setSpanKind(SpanKind::KIND_CLIENT);
-                if ($class === \Redis::class) {
+                if ($class === \RedisCluster::class) {
                     $statement = 'SETEX ' . $params[0] . ' ' . $params[1] . ' ?';
                     $builder->setAttribute(
                         TraceAttributes::DB_STATEMENT,
@@ -371,10 +194,10 @@ class RedisInstrumentation
             post: $genericPostHook,
         );
         hook(
-            \Redis::class,
+            \RedisCluster::class,
             'scan',
             pre: static function (
-                \Redis $redis,
+                \RedisCluster $redis,
                 array $params,
                 string $class,
                 string $function,
@@ -382,9 +205,9 @@ class RedisInstrumentation
                 ?int $lineno,
             ) use ($attributeTracker, $instrumentation) {
                 /** @psalm-suppress ArgumentTypeCoercion */
-                $builder = self::makeBuilder($instrumentation, 'Redis::scan', $function, $class, $filename, $lineno)
+                $builder = self::makeBuilder($instrumentation, 'RedisCluster::scan', $function, $class, $filename, $lineno)
                     ->setSpanKind(SpanKind::KIND_CLIENT);
-                if ($class === \Redis::class) {
+                if ($class === \RedisCluster::class) {
                     $statement = 'SCAN ' . $params[0];
                     if (!empty($params[1])) {
                         $statement .= ' MATCH ' . $params[1];
@@ -411,28 +234,16 @@ class RedisInstrumentation
             post: $genericPostHook,
         );
         hook(
-            \Redis::class,
-            'delete',
-            pre: self::generateVarargsPreHook('delete', $instrumentation, $attributeTracker),
-            post: $genericPostHook,
-        );
-        hook(
-            \Redis::class,
+            \RedisCluster::class,
             'del',
             pre: self::generateVarargsPreHook('del', $instrumentation, $attributeTracker),
             post: $genericPostHook,
         );
         hook(
-            \Redis::class,
-            'unlink',
-            pre: self::generateVarargsPreHook('unlink', $instrumentation, $attributeTracker),
-            post: $genericPostHook,
-        );
-        hook(
-            \Redis::class,
+            \RedisCluster::class,
             'sAdd',
             pre: static function (
-                \Redis $redis,
+                \RedisCluster $redis,
                 array $params,
                 string $class,
                 string $function,
@@ -440,9 +251,9 @@ class RedisInstrumentation
                 ?int $lineno,
             ) use ($attributeTracker, $instrumentation) {
                 /** @psalm-suppress ArgumentTypeCoercion */
-                $builder = self::makeBuilder($instrumentation, 'Redis::sAdd', $function, $class, $filename, $lineno)
+                $builder = self::makeBuilder($instrumentation, 'RedisCluster::sAdd', $function, $class, $filename, $lineno)
                     ->setSpanKind(SpanKind::KIND_CLIENT);
-                if ($class === \Redis::class) {
+                if ($class === \RedisCluster::class) {
                     $statement = 'SADD';
                     $maskValues = false;
                     foreach ($params as $value) {
@@ -470,10 +281,10 @@ class RedisInstrumentation
             post: $genericPostHook,
         );
         hook(
-            \Redis::class,
+            \RedisCluster::class,
             'sRem',
             pre: static function (
-                \Redis $redis,
+                \RedisCluster $redis,
                 array $params,
                 string $class,
                 string $function,
@@ -481,9 +292,9 @@ class RedisInstrumentation
                 ?int $lineno,
             ) use ($attributeTracker, $instrumentation) {
                 /** @psalm-suppress ArgumentTypeCoercion */
-                $builder = self::makeBuilder($instrumentation, 'Redis::sRem', $function, $class, $filename, $lineno)
+                $builder = self::makeBuilder($instrumentation, 'RedisCluster::sRem', $function, $class, $filename, $lineno)
                     ->setSpanKind(SpanKind::KIND_CLIENT);
-                if ($class === \Redis::class) {
+                if ($class === \RedisCluster::class) {
                     $statement = 'SREM';
                     $maskValues = false;
                     foreach ($params as $value) {
@@ -511,25 +322,19 @@ class RedisInstrumentation
             post: $genericPostHook,
         );
         hook(
-            \Redis::class,
+            \RedisCluster::class,
             'multi',
             pre: self::generateSimplePreHook('multi', $instrumentation, $attributeTracker),
             post: $genericPostHook,
         );
         hook(
-            \Redis::class,
-            'pipeline',
-            pre: self::generateSimplePreHook('pipeline', $instrumentation, $attributeTracker),
-            post: $genericPostHook,
-        );
-        hook(
-            \Redis::class,
+            \RedisCluster::class,
             'exec',
             pre: self::generateSimplePreHook('exec', $instrumentation, $attributeTracker),
             post: $genericPostHook,
         );
         hook(
-            \Redis::class,
+            \RedisCluster::class,
             'multi',
             pre: self::generateSimplePreHook('discard', $instrumentation, $attributeTracker),
             post: $genericPostHook,
@@ -559,7 +364,7 @@ class RedisInstrumentation
         RedisAttributeTracker $attributeTracker,
     ): callable {
         return static function (
-            \Redis $redis,
+            \RedisCluster $redis,
             array $params,
             string $class,
             string $function,
@@ -567,7 +372,7 @@ class RedisInstrumentation
             ?int $lineno,
         ) use ($attributeTracker, $instrumentation, $command) {
             /** @psalm-suppress ArgumentTypeCoercion */
-            $builder = self::makeBuilder($instrumentation, "Redis::$command", $function, $class, $filename, $lineno)
+            $builder = self::makeBuilder($instrumentation, "RedisCluster::$command", $function, $class, $filename, $lineno)
                 ->setSpanKind(SpanKind::KIND_CLIENT);
             $parent = Context::getCurrent();
             $span = $builder->startSpan();
@@ -583,7 +388,7 @@ class RedisInstrumentation
         RedisAttributeTracker $attributeTracker,
     ): callable {
         return static function (
-            \Redis $redis,
+            \RedisCluster $redis,
             array $params,
             string $class,
             string $function,
@@ -591,9 +396,9 @@ class RedisInstrumentation
             ?int $lineno,
         ) use ($attributeTracker, $instrumentation, $command) {
             /** @psalm-suppress ArgumentTypeCoercion */
-            $builder = self::makeBuilder($instrumentation, "Redis::$command", $function, $class, $filename, $lineno)
+            $builder = self::makeBuilder($instrumentation, "RedisCluster::$command", $function, $class, $filename, $lineno)
                 ->setSpanKind(SpanKind::KIND_CLIENT);
-            if ($class === \Redis::class) {
+            if ($class === \RedisCluster::class) {
                 if (isset($params[0]) && is_array($params[0])) {
                     $params = $params[0];
                 }

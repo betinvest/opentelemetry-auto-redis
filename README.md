@@ -7,14 +7,14 @@
 
 <!--This is a read-only subtree split of https://github.com/open-telemetry/opentelemetry-php-contrib.-->
 
-# OpenTelemetry Redis (PHP-Redis, Credis and Predis) auto-instrumentation
+# OpenTelemetry Redis (PHP-Redis, RedisCluster, Credis and Predis) auto-instrumentation
 
 Please read https://opentelemetry.io/docs/instrumentation/php/automatic/ for instructions on how to
 install and configure the extension and SDK.
 
 ## Overview
 Auto-instrumentation hooks are registered via composer, and spans will automatically be created for
-selected `Redis` (via extension) and `Predis\Client` methods, along with `Credis`.
+selected `Redis`, `RedisCluster` (via extension) and `Predis\Client` methods, along with `Credis`.
 
 ## Configuration
 

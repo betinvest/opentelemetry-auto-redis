@@ -17,13 +17,14 @@ use Predis\Client;
 use Predis\Connection\NodeConnectionInterface;
 use Predis\Connection\ParametersInterface;
 use Redis;
+use RedisCluster;
 use Throwable;
 use WeakMap;
 
 class RedisAttributeTracker
 {
     /**
-     * @var WeakMap<Redis|Client|Credis_Client, iterable<non-empty-string, bool|int|float|string|array|null>>
+     * @var WeakMap<Redis|Client|Credis_Client|RedisCluster, iterable<non-empty-string, bool|int|float|string|array|null>>
      */
     private WeakMap $redisToAttributesMap;
 
@@ -34,11 +35,11 @@ class RedisAttributeTracker
     }
 
     /**
-     * @param Redis|Client|Credis_Client $redis
+     * @param Redis|Client|Credis_Client|RedisCluster $redis
      *
      * @return iterable<non-empty-string, bool|int|float|string|array|null>
      */
-    public function trackRedisAttributes(Redis|Client|Credis_Client $redis): iterable
+    public function trackRedisAttributes(Redis|Client|Credis_Client|RedisCluster $redis): iterable
     {
         /** @var array<non-empty-string, bool|int|float|string|array|null> $attributes */
         $attributes = $this->redisToAttributesMap[$redis]
@@ -111,7 +112,7 @@ class RedisAttributeTracker
         return $this->redisToAttributesMap[$redis] = $attributes;
     }
 
-    public function trackRedisAuth(Redis|Client|Credis_Client $redis, string $username): array
+    public function trackRedisAuth(Redis|Client|Credis_Client|RedisCluster $redis, string $username): array
     {
         $attributes = $this->redisToAttributesMap[$redis] ?? null;
         if ($attributes === null) {
@@ -121,7 +122,7 @@ class RedisAttributeTracker
         return $this->redisToAttributesMap[$redis] = $attributes;
     }
 
-    public function trackRedisDbIdx(Redis|Client|Credis_Client $redis, int $dbIndex): array
+    public function trackRedisDbIdx(Redis|Client|Credis_Client|RedisCluster $redis, int $dbIndex): array
     {
         $attributes = $this->redisToAttributesMap[$redis] ?? null;
         if ($attributes === null) {
@@ -131,7 +132,7 @@ class RedisAttributeTracker
         return $this->redisToAttributesMap[$redis] = $attributes;
     }
 
-    public function trackedAttributesForRedis(Redis|Client|Credis_Client $redis)
+    public function trackedAttributesForRedis(Redis|Client|Credis_Client|RedisCluster $redis)
     {
         return $this->redisToAttributesMap[$redis] ?? [];
     }
